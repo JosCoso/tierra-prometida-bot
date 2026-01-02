@@ -1,0 +1,340 @@
+import { Bot, InlineKeyboard } from "grammy";
+import { GoogleSpreadsheet } from "google-spreadsheet";
+import "dotenv/config";
+import { formatMonthlyMessage, formatWeeklyMessage, parseRowToEvent, ParsedEvent } from "./formatting.js";
+import { getVotes } from "./rsvp_storage.js";
+import { getGreeting } from "./greetings_utils.js";
+
+const TIMEZONE = process.env.TIMEZONE || "America/Mexico_City";
+
+// Helper para obtener la fecha actual en la zona horaria deseada (YYYY-MM-DD)
+export function getCurrentDateInTimezone(): Date {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: TIMEZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === "year")?.value;
+    const month = parts.find(p => p.type === "month")?.value;
+    const day = parts.find(p => p.type === "day")?.value;
+
+    // Retorna fecha a las 00:00:00 del día en la zona horaria
+    return new Date(`${year}-${month}-${day}T00:00:00`);
+}
+
+// Helper para parsear fecha del Excel (usando columnas Mes y Día)
+export function parseDateFromSheet(row: any, sheetTitle?: string): Date | null {
+    let valMes = row.get("Mes");
+    const valDia = row.get("Día");
+
+    // Si no hay columna "Mes", intentar obtenerlo del título de la hoja (ej: "ENERO")
+    if (!valMes && sheetTitle) {
+        // Buscar si el título contiene algún nombre de mes
+        const meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+        const tituloUpper = sheetTitle.toUpperCase();
+        const mesEncontrado = meses.find(m => tituloUpper.includes(m));
+        if (mesEncontrado) {
+            valMes = getMonthNumber(mesEncontrado);
+        }
+    }
+
+    if (!valMes || !valDia) return null;
+
+    const mesStr = String(valMes);
+    const diaStr = String(valDia);
+
+    const mes = parseInt(mesStr, 10);
+    const dia = parseInt(diaStr, 10);
+
+    if (isNaN(mes) || isNaN(dia)) return null;
+
+    // Usar año objetivo del .env o el actual por defecto
+    const targetYear = process.env.TARGET_YEAR ? parseInt(process.env.TARGET_YEAR, 10) : new Date().getFullYear();
+
+    // Crear fecha (Mes es 0-indexed en JS, así que restamos 1)
+    // Usamos string format para asegurar que no haya líos de timezone al crearla
+    const fechaStr = `${targetYear}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}T00:00:00`;
+    return new Date(fechaStr);
+}
+
+export function getMonthNumber(monthName: string): number {
+    const m = monthName.toLowerCase().trim();
+    const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    return months.indexOf(m) + 1;
+}
+
+export function getWeekDateRange(year: number, monthIndex: number, weekNumber: number) {
+    const firstDayOfMonth = new Date(year, monthIndex, 1);
+    const lastDayOfMonth = new Date(year, monthIndex + 1, 0);
+
+    // 1. Encontrar el Lunes de la semana que contiene al 1ro del mes
+    const dayOfWeek = firstDayOfMonth.getDay(); // 0=Sun, 1=Mon...
+    const distToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+    let start = new Date(firstDayOfMonth);
+    start.setDate(firstDayOfMonth.getDate() + distToMonday);
+
+    // 2. Avanzar 'weekNumber - 1' semanas
+    start.setDate(start.getDate() + (weekNumber - 1) * 7);
+
+    // 3. Calcular fin de la semana (Domingo)
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+
+    // Validar si la semana sigue siendo relevante para el mes solicitado
+    // (Si el inicio de la semana ya pasó el fin de mes, entonces esa semana no pertenece al mes)
+    if (start > lastDayOfMonth) return null;
+
+    // NOTA: Ya no recortamos 'end' con 'lastDayOfMonth' para mostrar la semana completa
+    // aunque cruce al siguiente mes (o venga del anterior).
+
+    return {
+        start,
+        end,
+        isLastWeek: end.getDate() === lastDayOfMonth.getDate() || (end > lastDayOfMonth && start <= lastDayOfMonth)
+    };
+}
+
+// A) Resumen Semanal (Lunes)
+export async function enviarResumenSemanal(bot: Bot, doc: GoogleSpreadsheet, canalId: string, simulatedDate?: Date) {
+    try {
+        console.log("Generando resumen semanal...");
+        await doc.loadInfo();
+
+        // 1. Calcular rango de la semana (Lunes a Domingo)
+        const hoy = simulatedDate || getCurrentDateInTimezone();
+        if (simulatedDate) {
+            const fechaLog = hoy.toLocaleDateString("es-MX", { day: '2-digit', month: '2-digit', year: 'numeric' });
+            console.log(`📅 Simulando fecha para resumen semanal: ${fechaLog}`);
+        }
+
+        const dayOfWeek = hoy.getDay(); // 0=Sun, 1=Mon...
+        // Ajustar para que la semana empiece en Lunes (si hoy es Domingo 0, dist es -6)
+        const distToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const startOfWeek = new Date(hoy);
+        startOfWeek.setDate(hoy.getDate() + distToMonday);
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+
+        // 2. Identificar meses involucrados
+        const startMonthIndex = startOfWeek.getMonth();
+        const endMonthIndex = endOfWeek.getMonth();
+
+        const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const startMonthName = meses[startMonthIndex] || "Enero";
+        const endMonthName = meses[endMonthIndex] || "Enero";
+
+        // 3. Obtener eventos de las hojas necesarias
+        const allEvents: ParsedEvent[] = [];
+
+        // Función auxiliar para cargar y parsear eventos de un mes
+        const loadEventsForMonth = async (monthName: string) => {
+            const sheet = doc.sheetsByIndex.find(s => s.title.toUpperCase().includes(monthName.toUpperCase()));
+            if (!sheet) return;
+
+            await sheet.loadHeaderRow(3);
+            const rows = await sheet.getRows();
+
+            for (const row of rows) {
+                const evt = parseRowToEvent(row, monthName);
+                if (evt) allEvents.push(evt);
+            }
+        };
+
+        await loadEventsForMonth(startMonthName);
+
+        // Si la semana cruza de mes, cargar también el siguiente
+        if (startMonthIndex !== endMonthIndex) {
+            await loadEventsForMonth(endMonthName);
+        }
+
+        // 4. Formatear mensaje
+        // Si cruza meses, el nombre del mes en el header puede ser compuesto o solo el inicial
+        // Para simplificar, si cruza, no ponemos mes en el título principal o ponemos ambos
+        const headerMonthName = startMonthIndex !== endMonthIndex ? `${startMonthName}/${endMonthName}` : startMonthName;
+        const isLastWeek = endOfWeek.getDate() === new Date(endOfWeek.getFullYear(), endOfWeek.getMonth() + 1, 0).getDate();
+
+        const mensaje = formatWeeklyMessage(
+            allEvents,
+            startOfWeek,
+            endOfWeek,
+            startMonthIndex,
+            headerMonthName,
+            isLastWeek
+        );
+
+        if (mensaje.includes("No hay eventos")) {
+            console.log("No hay eventos esta semana.");
+        } else {
+            await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
+            console.log("Resumen semanal enviado.");
+        }
+
+    } catch (error) {
+        console.error("Error en resumen semanal:", error);
+    }
+}
+
+// B) Recordatorio Diario (Hoy)
+export async function enviarRecordatorioDiario(bot: Bot, doc: GoogleSpreadsheet, canalId: string, simulatedDate?: Date) {
+    try {
+        console.log("Verificando eventos de hoy...");
+        await doc.loadInfo();
+        const hoy = simulatedDate || getCurrentDateInTimezone();
+        if (simulatedDate) {
+            const fechaLog = hoy.toLocaleDateString("es-MX", { day: '2-digit', month: '2-digit', year: 'numeric' });
+            console.log(`📅 Simulando fecha para recordatorio: ${fechaLog}`);
+        }
+
+        // 1. Identificar la hoja correcta según el mes
+        const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const mesNombre = meses[hoy.getMonth()] || "Enero";
+
+        let sheet = doc.sheetsByIndex.find(s => s.title.toUpperCase().includes(mesNombre.toUpperCase()));
+        if (!sheet) {
+            console.log(`⚠️ No se encontró hoja para ${mesNombre}, usando la primera.`);
+            sheet = doc.sheetsByIndex[0];
+        }
+        if (!sheet) return;
+
+        // Ajuste para nueva estructura: headers en fila 3
+        await sheet.loadHeaderRow(3);
+        const rows = await sheet.getRows();
+
+        let eventosHoy: any[] = [];
+
+        for (const row of rows) {
+            const evento = row.get("Evento");
+            if (!evento || evento === "undefined") continue;
+
+            const fechaEvento = parseDateFromSheet(row, sheet.title);
+
+            // Comparamos timestamps para ver si es exactamente el mismo día
+            if (fechaEvento && fechaEvento.getTime() === hoy.getTime()) {
+                eventosHoy.push(row);
+            }
+        }
+
+        if (eventosHoy.length > 0) {
+            // Frases dinámicas para el saludo
+            const saludos = [
+                "☀️ *¡BUENOS DÍAS! HOY EN TIERRA PROMETIDA:*",
+                "✨ *¡BENDECIDO DÍA, FAMILIA! AGENDA DE HOY:*",
+                "🚀 *¡ÁNIMO! ESTAS SON LAS ACTIVIDADES DE HOY:*",
+                "👋 *¡HOLA A TODOS! NO SE PIERDAN LO DE HOY:*",
+                "📅 *¡EXCELENTE DÍA! HOY TENEMOS:*",
+                "🕊️ *¡DÍA DE BENDICIÓN! AQUÍ LOS EVENTOS:*",
+                "💒 *¡NOS VEMOS EN CASA! ACTIVIDADES DE HOY:*"
+            ];
+            const saludoRandom = saludos[Math.floor(Math.random() * saludos.length)];
+
+            const diaNum = hoy.getDate();
+            // mesNombre ya fue calculado arriba (línea 198)
+            let mensaje = `${saludoRandom}\n📅 *${diaNum} de ${mesNombre}*\n\n`;
+            for (const row of eventosHoy) {
+                mensaje += ` *${row.get("Evento")}*\n`;
+                if (row.get("Hora")) mensaje += `   ⏰ Hora: ${row.get("Hora")}\n`;
+                if (row.get("Lugar")) mensaje += `   📍 Lugar: ${row.get("Lugar")}\n`;
+                if (row.get("Descripción")) mensaje += `    ${row.get("Descripción")}\n`;
+                mensaje += "\n";
+            }
+            const sentMessage = await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
+
+            // Agregar botón de RSVP
+            // Inicialmente 0 votos o lo que haya en storage (aunque será nuevo mensaje, será 0)
+            const keyboard = new InlineKeyboard()
+                .text(`✋ Asistiré (0)`, `rsvp:attend`);
+
+            await bot.api.editMessageReplyMarkup(canalId, sentMessage.message_id, { reply_markup: keyboard });
+
+            console.log(`Recordatorio enviado para ${eventosHoy.length} eventos.`);
+        } else {
+            console.log("No hay eventos para hoy.");
+        }
+
+    } catch (error) {
+        console.error("Error en recordatorio diario:", error);
+    }
+}
+
+// Helper para obtener frase del mes (DEPRECATED: Se usa metadata del sheet ahora)
+export function getMonthlyPhrase(monthName: string): string {
+    // ... (mantener por si acaso o borrar si ya no se usa en absoluto)
+    return "";
+}
+
+// C) Resumen Mensual (Día 1 del mes)
+// C) Resumen Mensual (Día 1 del mes)
+export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, canalId: string, mesNombre?: string) {
+    try {
+        console.log("Generando resumen mensual...");
+        await doc.loadInfo();
+
+        let sheet;
+        let mesActual;
+        let nombreMes: string;
+
+        const nombresMeses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+        if (mesNombre) {
+            // Si se especifica un mes, buscamos esa hoja
+            nombreMes = mesNombre;
+            sheet = doc.sheetsByIndex.find(s => s.title.toUpperCase().includes(mesNombre.toUpperCase()));
+            if (!sheet) {
+                console.log(`No se encontró hoja para el mes: ${mesNombre}`);
+                return;
+            }
+            mesActual = getMonthNumber(mesNombre);
+        } else {
+            // Si no, usamos el mes actual
+            const hoy = getCurrentDateInTimezone();
+            mesActual = hoy.getMonth() + 1;
+            nombreMes = nombresMeses[mesActual - 1] || "Mes Actual";
+
+            // Intentamos buscar por nombre primero, si no, fallback al index 0 (comportamiento anterior, aunque arriesgado si cambian orden)
+            // Para mantener compatibilidad con lo que hemos visto, asumimos que las hojas se llaman "ENERO", "FEBRERO", etc.
+            sheet = doc.sheetsByIndex.find(s => s.title.toUpperCase().includes(nombreMes.toUpperCase()));
+            if (!sheet) {
+                // Fallback al sheet 0 si no encuentra por nombre (legacy behavior)
+                sheet = doc.sheetsByIndex[0];
+            }
+        }
+
+        if (!sheet) return;
+
+        // 1. Cargar metadatos (Título y Descripción) de filas 1-2
+        // A2 (1,0) -> Título
+        // B2 (1,1) -> Descripción
+        await sheet.loadCells('A2:B2');
+        const tituloPersonalizado = sheet.getCell(1, 0).value?.toString() || "";
+        const descripcionPersonalizada = sheet.getCell(1, 1).value?.toString() || "";
+
+        // 2. Cargar headers de fila 3
+        await sheet.loadHeaderRow(3);
+        const rows = await sheet.getRows();
+
+        // Usar el módulo de formato unificado
+        const mensaje = formatMonthlyMessage(
+            rows,
+            {
+                title: tituloPersonalizado,
+                description: descripcionPersonalizada,
+                monthName: nombreMes
+            },
+            mesActual
+        );
+
+        await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
+        console.log("Resumen mensual enviado.");
+
+    } catch (error) {
+        console.error("Error en resumen mensual:", error);
+    }
+}
