@@ -1,0 +1,7 @@
+node_modules/
+.env
+credentials.json
+dist/
+*.log
+.DS_Store
+rsvp_data.json
