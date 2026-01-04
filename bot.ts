@@ -22,7 +22,13 @@ const CANAL_ID = canalId;
 const SPREADSHEET_ID = spreadsheetId;
 
 // Carga de tus credenciales JSON (puedes copiar los valores del archivo aquí o importar el archivo)
-const creds = require("./credentials.json");
+// Carga de credenciales: Intenta variable de entorno primero (Render), sino archivo local (Dev)
+let creds;
+if (process.env.GOOGLE_CREDENTIALS) {
+    creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+} else {
+    creds = require("./credentials.json");
+}
 
 const serviceAccountAuth = new JWT({
     email: creds.client_email,
