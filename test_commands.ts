@@ -182,17 +182,5 @@ export function setupTestCommands(bot: Bot, doc: GoogleSpreadsheet, canalId: str
         await ctx.reply("✅ Chequeo estelar finalizado.");
     });
 
-    // Comando para ver lista de demostraciones
-    bot.command("demostraciones", async (ctx) => {
-        const texto = `
-📊 *Demo rápida del Bot* 📊
 
-🔹 /test_dia               – Simula el recordatorio diario.
-🔹 /test_semana 2 agosto   – Simula el resumen semanal (semana 2 de agosto).
-🔹 /test_mes 03 agosto     – Simula el resumen mensual (3 de agosto).
-🔹 /test_estelar 15 diciembre – Simula el aviso de 5 días antes (evento estelar).
-
-Puedes cambiar la fecha que prefieras para probar cualquier día/semana/mes.`;
-        await ctx.reply(texto, { parse_mode: "Markdown" });
-    });
 }

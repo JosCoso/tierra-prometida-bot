@@ -2,7 +2,7 @@ import { Bot } from "grammy";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import * as cron from "node-cron";
-import { createServer } from "http";
+import * as cron from "node-cron";
 
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -291,8 +291,27 @@ bot.callbackQuery("cancel", async (ctx) => {
 // Comando de Menú de Ayuda
 
 // Comando de Menú de Ayuda
+// Comando de Menú de Ayuda
 bot.command("menu", async (ctx) => {
     await showMenu(ctx);
+});
+
+// Comando de Ayuda
+bot.command("ayuda", async (ctx) => {
+    const helpText = `
+🤖 *Comandos Disponibles:*
+
+🔹 */menu* - Abre el menú interactivo
+🔹 */semana [N] [Mes]* - Resumen de una semana
+🔹 */dia [N] [Mes]* - Eventos de un día
+🔹 */todo [Mes]* - Calendario del mes
+
+Ejemplos:
+- /semana 2 Enero
+- /dia 4 Enero
+- /todo Enero
+`;
+    await ctx.reply(helpText, { parse_mode: "Markdown" });
 });
 
 // --- MENÚ INTERACTIVO A LA CARTA ---
@@ -528,13 +547,16 @@ bot.command("debug_sheet", async (ctx) => {
     }
 });
 
-// Dummy server for Render (Web Service requirement)
+// Express server for Render (Web Service requirement & Health Check)
+import express from "express";
+const app = express();
 const PORT = process.env.PORT || 3000;
-const server = createServer((req, res) => {
-    res.writeHead(200);
-    res.end("Bot is running!");
+
+app.get("/", (req, res) => {
+    res.send("Bot is running");
 });
-server.listen(PORT, () => {
+
+app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
 });
 
