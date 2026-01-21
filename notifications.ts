@@ -4,6 +4,11 @@ import "dotenv/config";
 import { formatMonthlyMessage, formatWeeklyMessage, parseRowToEvent, ParsedEvent } from "./formatting.js";
 import { getVotes } from "./rsvp_storage.js";
 import { getGreeting } from "./greetings_utils.js";
+import { whatsappService } from "./whatsapp_service.js";
+
+// ID del Canal de WhatsApp (o número de destino si fuera chat directo)
+const WHATSAPP_CHANNEL_ID = process.env.WHATSAPP_CHANNEL_ID;
+
 
 const TIMEZONE = process.env.TIMEZONE || "America/Mexico_City";
 
@@ -174,7 +179,15 @@ export async function enviarResumenSemanal(bot: Bot, doc: GoogleSpreadsheet, can
             console.log("No hay eventos esta semana.");
         } else {
             await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
-            console.log("Resumen semanal enviado.");
+            console.log("Resumen semanal enviado a Telegram.");
+
+            if (WHATSAPP_CHANNEL_ID) {
+                // Enviar al Canal de WhatsApp
+                await whatsappService.sendMessage(WHATSAPP_CHANNEL_ID, mensaje);
+                console.log("Resumen semanal enviado a WhatsApp.");
+            }
+
+
         }
 
     } catch (error) {
@@ -246,6 +259,12 @@ export async function enviarRecordatorioDiario(bot: Bot, doc: GoogleSpreadsheet,
                 mensaje += "\n";
             }
             const sentMessage = await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
+
+            if (WHATSAPP_CHANNEL_ID) {
+                await whatsappService.sendMessage(WHATSAPP_CHANNEL_ID, mensaje);
+            }
+
+
 
             // Agregar botón de RSVP
             // Inicialmente 0 votos o lo que haya en storage (aunque será nuevo mensaje, será 0)
@@ -332,6 +351,11 @@ export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, can
         );
 
         await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
+
+        if (WHATSAPP_CHANNEL_ID) {
+            await whatsappService.sendMessage(WHATSAPP_CHANNEL_ID, mensaje);
+        }
+
         console.log("Resumen mensual enviado.");
 
     } catch (error) {

@@ -552,9 +552,61 @@ bot.command("debug_sheet", async (ctx) => {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(express.json());
+
 app.get("/", (req, res) => {
     res.send("Bot is running");
 });
+
+// Webhook de Verificación (Meta te pedirá esto al configurar)
+app.get("/webhook", (req, res) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    // Define tu propio token de verificación en .env (ej: "botconnect_verify")
+    const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "botconnect_secret";
+
+    if (mode && token) {
+        if (mode === "subscribe" && token === VERIFY_TOKEN) {
+            console.log("✅ Webhook verificado correctamente.");
+            res.status(200).send(challenge);
+        } else {
+            res.sendStatus(403);
+        }
+    } else {
+        res.sendStatus(400);
+    }
+});
+
+// Webhook para recibir mensajes
+app.post("/webhook", (req, res) => {
+    const body = req.body;
+
+    // LOG CRUCIAL: Imprimir todo el evento para depurar (ver invitaciones, estados, etc.)
+    console.log("📨 Webhook Payload:", JSON.stringify(body, null, 2));
+
+    // Verificar que sea un evento de WhatsApp
+    if (body.object) {
+        if (body.entry &&
+            body.entry[0].changes &&
+            body.entry[0].changes[0] &&
+            body.entry[0].changes[0].value.messages &&
+            body.entry[0].changes[0].value.messages[0]
+        ) {
+            const message = body.entry[0].changes[0].value.messages[0];
+            const from = message.from; // Número de teléfono
+            const text = message.text?.body; // Texto del mensaje
+
+            console.log(`📩 Mensaje de texto recibido de (${from}): ${text}`);
+        }
+        res.sendStatus(200);
+    } else {
+        res.sendStatus(404);
+    }
+});
+
+
 
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
