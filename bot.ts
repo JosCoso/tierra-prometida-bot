@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, GrammyError, HttpError } from "grammy";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import * as cron from "node-cron";
@@ -612,5 +612,24 @@ app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
 });
 
+// Manejo de errores global para evitar que el bot se detenga
+bot.catch((err) => {
+    const ctx = err.ctx;
+    console.error(`❌ Error mientras se manejaba el update ${ctx.update.update_id}:`);
+    const e = err.error;
+    if (e instanceof GrammyError) {
+        console.error("Error de Grammy:", e.description);
+    } else if (e instanceof HttpError) {
+        console.error("No se pudo contactar a Telegram:", e);
+    } else {
+        console.error("Error desconocido:", e);
+    }
+});
+
 // Iniciar el bot al final
-bot.start();
+bot.start({
+    onStart: (botInfo) => {
+        console.log(`Bot iniciado. Zona horaria: ${TIMEZONE}`);
+        console.log(`Programación: Mensual (Día 1), Semanal (Lun) y Diario (Todos los días) a las 9am`);
+    }
+});
