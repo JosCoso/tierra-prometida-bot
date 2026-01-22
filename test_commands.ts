@@ -183,4 +183,22 @@ export function setupTestCommands(bot: Bot, doc: GoogleSpreadsheet, canalId: str
     });
 
 
+    // Comando para probar WhatsApp Directo (Plan B)
+    bot.command("test_whatsapp", async (ctx) => {
+        const targetPhone = process.env.WHATSAPP_TARGET_PHONE;
+        if (!targetPhone) {
+            await ctx.reply("❌ Falta configurar WHATSAPP_TARGET_PHONE en el .env");
+            return;
+        }
+        await ctx.reply(`Enviando mensaje de prueba a WhatsApp (${targetPhone})...`);
+
+        try {
+            const { whatsappService } = await import("./whatsapp_service.js");
+            await whatsappService.sendMessage(targetPhone, "🔔 *Hola desde tu Bot!* \nEsta es una prueba de conexión directa. Si lees esto, ¡ya estamos conectados! 🚀");
+            await ctx.reply("✅ Intento de envío realizado. Revisa tu WhatsApp.");
+        } catch (error) {
+            console.error(error);
+            await ctx.reply("❌ Error al enviar mensaje de WhatsApp. Revisa los logs.");
+        }
+    });
 }
