@@ -44,6 +44,16 @@ export class WhatsAppService {
             // No lanzamos error para no interrumpir el flujo principal
         }
     }
+
+    async sendChannelMessage(channelId: string, text: string) {
+        if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) {
+            console.error("❌ No se puede enviar mensaje al canal: Faltan credenciales.");
+            return;
+        }
+
+        console.log(`📤 Intentando enviar mensaje al canal ${channelId}...`);
+        return this.sendMessage(channelId, text);
+    }
 }
 
 export const whatsappService = new WhatsAppService();

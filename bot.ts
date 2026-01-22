@@ -584,7 +584,7 @@ app.post("/webhook", (req, res) => {
     const body = req.body;
 
     // LOG CRUCIAL: Imprimir todo el evento para depurar (ver invitaciones, estados, etc.)
-    console.log("📨 Webhook Payload:", JSON.stringify(body, null, 2));
+    console.log("📨 [WHATSAPP_WEBHOOK] Payload:", JSON.stringify(body, null, 2));
 
     // Verificar que sea un evento de WhatsApp
     if (body.object) {
