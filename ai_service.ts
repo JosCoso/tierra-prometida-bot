@@ -8,7 +8,7 @@ let model: any = null;
 
 if (API_KEY) {
     genAI = new GoogleGenerativeAI(API_KEY);
-    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    model = genAI.getGenerativeModel({ model: "gemini-pro" });
 } else {
     console.warn("⚠️ GEMINI_API_KEY no configurada. Se usarán saludos estáticos.");
 }
