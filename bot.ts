@@ -626,10 +626,13 @@ bot.catch((err) => {
     }
 });
 
-// Iniciar el bot al final
+// Iniciar el bot al final (con manejo de errores para no tumbar el servidor Express)
 bot.start({
     onStart: (botInfo) => {
         console.log(`Bot iniciado. Zona horaria: ${TIMEZONE}`);
         console.log(`Programación: Mensual (Día 1), Semanal (Lun) y Diario (Todos los días) a las 9am`);
     }
+}).catch((err) => {
+    console.error("❌ Error crítico al iniciar el bot de Telegram:", err);
+    console.error("⚠️ El bot de Telegram no estará activo, pero el servidor Webhook (WhatsApp) seguirá funcionando.");
 });
