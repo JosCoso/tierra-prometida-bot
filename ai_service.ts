@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import "dotenv/config";
-import axios from "axios";
+
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -9,19 +9,7 @@ let model: any = null;
 
 if (API_KEY) {
     genAI = new GoogleGenerativeAI(API_KEY);
-    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    // DEBUG: Listar modelos disponibles para ver cuál funciona
-    (async () => {
-        try {
-            console.log("🔍 Verificando modelos disponibles en Gemini API...");
-            const response = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
-            const models = response.data.models.map((m: any) => m.name);
-            console.log("✅ Modelos disponibles:", models.join(", "));
-        } catch (error: any) {
-            console.error("❌ Error listando modelos:", error.response?.data || error.message);
-        }
-    })();
+    model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 } else {
     console.warn("⚠️ GEMINI_API_KEY no configurada. Se usarán saludos estáticos.");
