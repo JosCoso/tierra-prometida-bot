@@ -218,8 +218,10 @@ bot.callbackQuery(/^act_month:(.+)$/, async (ctx) => {
     if (!match || typeof match[1] !== 'string') return;
     const month = match[1];
     await ctx.answerCallbackQuery(`Generando resumen de ${month}...`);
-    await enviarResumenMensual(bot, doc, CANAL_ID, month);
-    await ctx.reply(`✅ Resumen Mensual (${month}) enviado al canal.`);
+    // Fire-and-forget para evitar timeouts
+    enviarResumenMensual(bot, doc, CANAL_ID, month)
+        .then(() => ctx.reply(`✅ Resumen Mensual (${month}) enviado al canal.`))
+        .catch(err => ctx.reply(`❌ Error: ${err.message || err}`));
 });
 
 // 5. Selección de Semana (sel_week:Enero) -> Muestra semanas 1-5
@@ -246,8 +248,10 @@ bot.callbackQuery(/^act_week:(.+):(\d+)$/, async (ctx) => {
     const range = getWeekDateRange(targetYear, mesNum - 1, weekNum);
 
     if (range) {
-        await enviarResumenSemanal(bot, doc, CANAL_ID, range.start);
-        await ctx.reply(`✅ Resumen Semanal (Semana ${weekNum} ${month}) enviado al canal.`);
+        // Fire-and-forget
+        enviarResumenSemanal(bot, doc, CANAL_ID, range.start)
+            .then(() => ctx.reply(`✅ Resumen Semanal (Semana ${weekNum} ${month}) enviado al canal.`))
+            .catch(err => ctx.reply(`❌ Error: ${err.message || err}`));
     } else {
         await ctx.reply(`❌ No se pudo calcular la semana ${weekNum} de ${month}.`);
     }
@@ -276,8 +280,14 @@ bot.callbackQuery(/^act_day:(.+):(\d+)$/, async (ctx) => {
     // Crear fecha (mes es 0-based en Date constructor)
     const simulatedDate = new Date(targetYear, mesNum - 1, day);
 
-    await enviarRecordatorioDiario(bot, doc, CANAL_ID, simulatedDate);
-    await ctx.reply(`✅ Resumen Diario (${day} de ${month}) enviado al canal.`);
+    // NO esperar a que termine (fire-and-forget) para evitar timeout del webhook de Telegram
+    // Telegram reintenta si no respondemos 200 OK rápido, lo que causa mensajes duplicados.
+    enviarRecordatorioDiario(bot, doc, CANAL_ID, simulatedDate)
+        .then(() => ctx.reply(`✅ Resumen Diario (${day} de ${month}) enviado al canal.`))
+        .catch((err) => {
+            console.error("❌ Error en background enviarRecordatorioDiario:", err);
+            ctx.reply(`❌ Error enviando resumen: ${err.message || err}`);
+        });
 });
 
 bot.callbackQuery("cancel", async (ctx) => {
