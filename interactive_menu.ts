@@ -12,6 +12,19 @@ export async function showMenu(ctx: Context) {
     });
 }
 
+// Helper para ignorar errores de "message is not modified"
+async function safeEditMessageText(ctx: Context, text: string, extra: any) {
+    try {
+        await ctx.editMessageText(text, extra);
+    } catch (error: any) {
+        if (error.description && error.description.includes("message is not modified")) {
+            // Ignorar este error, es inofensivo
+            return;
+        }
+        throw error; // Re-lanzar otros errores
+    }
+}
+
 // 1. Menú de Meses
 export async function showSpecificMenu(ctx: Context) {
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -26,7 +39,7 @@ export async function showSpecificMenu(ctx: Context) {
 
     // Editar mensaje existente si es posible, sino enviar nuevo
     if (ctx.callbackQuery?.message) {
-        await ctx.editMessageText("🗓 Selecciona un Mes:", { reply_markup: keyboard });
+        await safeEditMessageText(ctx, "🗓 Selecciona un Mes:", { reply_markup: keyboard });
     } else {
         await ctx.reply("🗓 Selecciona un Mes:", { reply_markup: keyboard });
     }
@@ -40,7 +53,7 @@ export async function showMonthActions(ctx: Context, month: string) {
         .text("☀️ Elegir Día", `sel_day:${month}`).row()
         .text("🔙 Volver", "menu_specific");
 
-    await ctx.editMessageText(`⚙️ Opciones para *${month}*:`, {
+    await safeEditMessageText(ctx, `⚙️ Opciones para *${month}*:`, {
         reply_markup: keyboard,
         parse_mode: "Markdown"
     });
@@ -56,7 +69,7 @@ export async function showWeeksMenu(ctx: Context, month: string) {
     }
     keyboard.row().text("🔙 Volver", `month:${month}`);
 
-    await ctx.editMessageText(`🗓 Selecciona la semana de *${month}*:`, {
+    await safeEditMessageText(ctx, `🗓 Selecciona la semana de *${month}*:`, {
         reply_markup: keyboard,
         parse_mode: "Markdown"
     });
@@ -72,7 +85,7 @@ export async function showDaysMenu(ctx: Context, month: string) {
     }
     keyboard.row().text("🔙 Volver", `month:${month}`);
 
-    await ctx.editMessageText(`☀️ Selecciona el día de *${month}*:`, {
+    await safeEditMessageText(ctx, `☀️ Selecciona el día de *${month}*:`, {
         reply_markup: keyboard,
         parse_mode: "Markdown"
     });
