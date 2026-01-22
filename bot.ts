@@ -548,16 +548,24 @@ bot.command("debug_sheet", async (ctx) => {
     }
 });
 
-// Express server for Render (Web Service requirement & Health Check)
+// 5. SERVER & WEBHOOKS (Telegram + WhatsApp)
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
 app.get("/", (req, res) => {
-    res.send("Bot is running");
+    res.send("Bot is running 🚀");
 });
 
+// --- TELEGRAM WEBHOOK ---
+// Configurar webhook de Telegram en la ruta /telegram
+// IMPORTANTE: Debes configurar el webhook manualmente una vez:
+// https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<TU-DOMINIO>/telegram
+import { webhookCallback } from "grammy";
+app.post("/telegram", webhookCallback(bot, "express"));
+
+// --- WHATSAPP WEBHOOK ---
 // Webhook de Verificación (Meta te pedirá esto al configurar)
 app.get("/webhook", (req, res) => {
     const mode = req.query["hub.mode"];
@@ -579,7 +587,7 @@ app.get("/webhook", (req, res) => {
     }
 });
 
-// Webhook para recibir mensajes
+// Webhook para recibir mensajes de WhatsApp
 app.post("/webhook", (req, res) => {
     const body = req.body;
 
@@ -606,13 +614,22 @@ app.post("/webhook", (req, res) => {
     }
 });
 
-
-
-app.listen(PORT, () => {
+// Iniciar servidor
+app.listen(PORT, async () => {
     console.log(`Server listening on port ${PORT}`);
+    console.log(`Bot iniciado. Zona horaria: ${TIMEZONE}`);
+    console.log(`Programación: Mensual (Día 1), Semanal (Lun) y Diario (Todos los días) a las 9am`);
+
+    // Opcional: Imprimir info del bot al arrancar
+    try {
+        const botInfo = await bot.api.getMe();
+        console.log(`🤖 Bot de Telegram conectado: @${botInfo.username}`);
+    } catch (e) {
+        console.error("⚠️ Error al conectar con Telegram (revisa el Token):", e);
+    }
 });
 
-// Manejo de errores global para evitar que el bot se detenga
+// Manejo de errores global
 bot.catch((err) => {
     const ctx = err.ctx;
     console.error(`❌ Error mientras se manejaba el update ${ctx.update.update_id}:`);
@@ -624,15 +641,4 @@ bot.catch((err) => {
     } else {
         console.error("Error desconocido:", e);
     }
-});
-
-// Iniciar el bot al final (con manejo de errores para no tumbar el servidor Express)
-bot.start({
-    onStart: (botInfo) => {
-        console.log(`Bot iniciado. Zona horaria: ${TIMEZONE}`);
-        console.log(`Programación: Mensual (Día 1), Semanal (Lun) y Diario (Todos los días) a las 9am`);
-    }
-}).catch((err) => {
-    console.error("❌ Error crítico al iniciar el bot de Telegram:", err);
-    console.error("⚠️ El bot de Telegram no estará activo, pero el servidor Webhook (WhatsApp) seguirá funcionando.");
 });

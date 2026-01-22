@@ -6,8 +6,14 @@ import { getVotes } from "./rsvp_storage.js";
 import { getGreeting } from "./greetings_utils.js";
 import { whatsappService } from "./whatsapp_service.js";
 
-// ID del Canal de WhatsApp (o número de destino si fuera chat directo)
+// ID del Canal de WhatsApp (o número de destino si fuera chat directo - Plan B)
 const WHATSAPP_CHANNEL_ID = process.env.WHATSAPP_CHANNEL_ID;
+const WHATSAPP_TARGET_PHONE = process.env.WHATSAPP_TARGET_PHONE;
+
+// Helper para determinar el destino de WhatsApp (Prioridad: Canal > Teléfono Directo)
+function getWhatsAppTarget() {
+    return WHATSAPP_CHANNEL_ID || WHATSAPP_TARGET_PHONE;
+}
 
 
 const TIMEZONE = process.env.TIMEZONE || "America/Mexico_City";
@@ -181,10 +187,11 @@ export async function enviarResumenSemanal(bot: Bot, doc: GoogleSpreadsheet, can
             await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
             console.log("Resumen semanal enviado a Telegram.");
 
-            if (WHATSAPP_CHANNEL_ID) {
-                // Enviar al Canal de WhatsApp
-                await whatsappService.sendMessage(WHATSAPP_CHANNEL_ID, mensaje);
-                console.log("Resumen semanal enviado a WhatsApp.");
+            const waTarget = getWhatsAppTarget();
+            if (waTarget) {
+                // Enviar al Canal de WhatsApp o Directo
+                await whatsappService.sendMessage(waTarget, mensaje);
+                console.log(`Resumen semanal enviado a WhatsApp (${waTarget}).`);
             }
 
 
@@ -260,8 +267,9 @@ export async function enviarRecordatorioDiario(bot: Bot, doc: GoogleSpreadsheet,
             }
             const sentMessage = await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
 
-            if (WHATSAPP_CHANNEL_ID) {
-                await whatsappService.sendMessage(WHATSAPP_CHANNEL_ID, mensaje);
+            const waTarget = getWhatsAppTarget();
+            if (waTarget) {
+                await whatsappService.sendMessage(waTarget, mensaje);
             }
 
 
@@ -352,8 +360,9 @@ export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, can
 
         await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });
 
-        if (WHATSAPP_CHANNEL_ID) {
-            await whatsappService.sendMessage(WHATSAPP_CHANNEL_ID, mensaje);
+        const waTarget = getWhatsAppTarget();
+        if (waTarget) {
+            await whatsappService.sendMessage(waTarget, mensaje);
         }
 
         console.log("Resumen mensual enviado.");
