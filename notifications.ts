@@ -252,21 +252,27 @@ export async function enviarRecordatorioDiario(bot: Bot, doc: GoogleSpreadsheet,
         }
 
         if (eventosHoy.length > 0) {
-            // Frases dinámicas para el saludo
-            const saludos = [
-                "☀️ *¡BUENOS DÍAS! HOY EN TIERRA PROMETIDA:*",
-                "✨ *¡BENDECIDO DÍA, FAMILIA! AGENDA DE HOY:*",
-                "🚀 *¡ÁNIMO! ESTAS SON LAS ACTIVIDADES DE HOY:*",
-                "👋 *¡HOLA A TODOS! NO SE PIERDAN LO DE HOY:*",
-                "📅 *¡EXCELENTE DÍA! HOY TENEMOS:*",
-                "🕊️ *¡DÍA DE BENDICIÓN! AQUÍ LOS EVENTOS:*",
-                "💒 *¡NOS VEMOS EN CASA! ACTIVIDADES DE HOY:*"
-            ];
-            const saludoRandom = saludos[Math.floor(Math.random() * saludos.length)];
+            // Generar saludo con IA
+            const { aiService } = await import("./ai_service.js");
+            const nombresEventos = eventosHoy.map(row => row.get("Evento"));
+
+            // Intentar obtener metadatos del mes (Título y Versículo)
+            let theme = "";
+            let verse = "";
+            try {
+                // sheet ya está cargado arriba
+                await sheet.loadCells('A2:B2');
+                theme = sheet.getCell(1, 0).value?.toString() || "";
+                verse = sheet.getCell(1, 1).value?.toString() || "";
+            } catch (e) {
+                console.warn("⚠️ No se pudieron cargar metadatos del mes para IA:", e);
+            }
+
+            const saludoIA = await aiService.generateDailyGreeting(nombresEventos, theme, verse);
 
             const diaNum = hoy.getDate();
-            // mesNombre ya fue calculado arriba (línea 198)
-            let mensaje = `${saludoRandom}\n📅 *${diaNum} de ${mesNombre}*\n\n`;
+            // mesNombre ya fue calculado arriba
+            let mensaje = `☀️ *¡BUENOS DÍAS! HOY EN TIERRA PROMETIDA:*\n\n${saludoIA}\n\n📅 *${diaNum} de ${mesNombre}*\n\n`;
             for (const row of eventosHoy) {
                 mensaje += ` *${row.get("Evento")}*\n`;
                 if (row.get("Hora")) mensaje += `   ⏰ Hora: ${row.get("Hora")}\n`;

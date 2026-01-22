@@ -22,11 +22,14 @@ export class WhatsAppService {
         }
 
         try {
+            const { formatTelegramToWhatsapp } = await import("./formatting.js");
+            const cleanText = formatTelegramToWhatsapp(text);
+
             const data = {
                 messaging_product: "whatsapp",
                 to: to,
                 type: "text",
-                text: { body: text }
+                text: { body: cleanText }
             };
 
             const config = {

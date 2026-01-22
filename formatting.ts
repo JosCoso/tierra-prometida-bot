@@ -317,3 +317,22 @@ export function formatWeeklyMessage(
 
     return mensaje;
 }
+
+export function formatTelegramToWhatsapp(text: string): string {
+    let formatted = text;
+
+    // 1. Negritas: **texto** -> *texto*
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '*$1*');
+
+    // 2. Cursivas: __texto__ -> _texto_
+    formatted = formatted.replace(/__(.*?)__/g, '_$1_');
+
+    // 3. Tachado: ~~texto~~ -> ~texto~
+    formatted = formatted.replace(/~~(.*?)~~/g, '~$1~');
+
+    // 4. Listas: Asegurar espacio después del guion
+    // Telegram a veces acepta "-Item", WhatsApp prefiere "- Item"
+    formatted = formatted.replace(/^-\s*/gm, '- ');
+
+    return formatted;
+}
