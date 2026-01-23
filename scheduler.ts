@@ -111,11 +111,20 @@ export async function scheduleDailySummary(bot: Bot, doc: GoogleSpreadsheet, can
             dailyJob.stop();
         }
 
-        // Cron format: "MM HH * * *" (se ejecuta hoy a esa hora)
-        // Pero node-cron es recurrente. Si ponemos "30 6 * * *", se ejecutará TODOS los días a las 6:30.
-        // PERO, este script `scheduleDailySummary` corre a las 00:01.
-        // Así que creamos un cron que corre a la hora deseada, ejecuta la función, Y SE AUTODESTRUYE.
+        // VERIFICACIÓN: Si la hora ya pasó hoy, enviar inmediatamente
+        const now = getCurrentDateInTimezone();
+        const nowHour = now.getHours();
+        const nowMinute = now.getMinutes();
+        const nowTotalMinutes = nowHour * 60 + nowMinute;
 
+        // Si targetMinutes es menor que ahora, significa que ya pasó la hora
+        if (targetMinutes <= nowTotalMinutes) {
+            console.log(`⚠️ La hora programada (${timeStr}) ya pasó. Enviando resumen inmediatamente...`);
+            enviarRecordatorioDiario(bot, doc, canalId);
+            return;
+        }
+
+        // Cron format: "MM HH * * *" (se ejecuta hoy a esa hora)
         const cronExpression = `${targetMinute} ${targetHour} * * *`;
 
         dailyJob = cron.schedule(cronExpression, () => {

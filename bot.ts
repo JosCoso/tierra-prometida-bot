@@ -81,6 +81,12 @@ cron.schedule("1 0 * * *", () => {
 console.log(`Bot iniciado. Zona horaria: ${TIMEZONE}`);
 console.log("Programación: Mensual (Día 1), Semanal (Lun) y Diario (Todos los días) a las 9am");
 
+// 5. EJECUCIÓN AL INICIO (Recuperación de fallos)
+// Ejecutar el agendador al arrancar para:
+// a) Programar el recordatorio de hoy si aún no pasa.
+// b) Enviarlo inmediatamente si ya pasó y el bot estaba apagado.
+scheduleDailySummary(bot, doc, CANAL_ID);
+
 // Configurar comandos de prueba
 setupTestCommands(bot, doc, CANAL_ID);
 
