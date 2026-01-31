@@ -619,6 +619,13 @@ app.post("/webhook", (req, res) => {
             body.entry[0].changes[0].value.messages[0]
         ) {
             const message = body.entry[0].changes[0].value.messages[0];
+
+            // 1. Manejo de mensajes no soportados (Stickers, Encuestas, etc.)
+            if (message.type === "unsupported") {
+                console.log(`⚠️ [WHATSAPP] Mensaje no soportado recibido de ${message.from}. (Probablemente Sticker/Encuesta)`);
+                return res.sendStatus(200); // Responder OK para que WhatsApp deje de reintentar
+            }
+
             const from = message.from; // Número de teléfono
             const text = message.text?.body; // Texto del mensaje
 
