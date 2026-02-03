@@ -367,9 +367,16 @@ export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, can
 
             console.log(`📸 Buscando imagen mensual: ${imagePath}`);
 
-            // Enviamos la foto antes del texto
+            // Enviamos la foto antes del texto (Telegram)
             await bot.api.sendPhoto(canalId, new InputFile(imagePath));
-            console.log(`✅ Imagen ${filename} enviada.`);
+            console.log(`✅ Imagen ${filename} enviada a Telegram.`);
+
+            // Enviar a WhatsApp también
+            const waTargetImg = getWhatsAppTarget();
+            if (waTargetImg) {
+                await whatsappService.sendImage(waTargetImg, imagePath);
+                console.log(`✅ Imagen ${filename} enviada a WhatsApp.`);
+            }
         } catch (imgError) {
             console.warn(`⚠️ No se pudo enviar imagen mensual: ${imgError}`);
             // Continuamos con el texto aunque falle la imagen
