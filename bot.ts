@@ -1,4 +1,8 @@
 import { Bot, GrammyError, HttpError } from "grammy";
+process.on('uncaughtException', (err) => {
+    console.error('🔥 UNCAUGHT EXCEPTION:', err);
+    console.error(JSON.stringify(err, null, 2));
+});
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import * as cron from "node-cron";
@@ -122,9 +126,14 @@ bot.on("callback_query:data", async (ctx, next) => {
 });
 
 // Configurar Menú Persistente
-await bot.api.setMyCommands([
-    { command: "menu", description: "🤖 Menú Interactivo" },
-]);
+// Configurar Menú Persistente
+try {
+    await bot.api.setMyCommands([
+        { command: "menu", description: "🤖 Menú Interactivo" },
+    ]);
+} catch (configError) {
+    console.error("⚠️ Error configurando comandos:", configError);
+}
 
 // Handler para el botón de Demo
 bot.callbackQuery("demo_commands", async (ctx) => {
@@ -159,9 +168,25 @@ Puedes cambiar la fecha que prefieras para probar cualquier día/semana/mes.`;
 });
 
 // Importar funciones de menú
-import { showSpecificMenu, showMonthActions, showWeeksMenu, showDaysMenu, showMenu as showInteractiveMenu } from "./interactive_menu.js";
+import { showSpecificMenu, showMonthActions, showWeeksMenu, showDaysMenu, showMenu as showInteractiveMenu, showInfoMenu, showScheduleText, showGroupsText } from "./interactive_menu.js";
 
 // --- HANDLERS DEL MENÚ INTERACTIVO ---
+
+// 0. Menú de Información
+bot.callbackQuery("menu_info", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showInfoMenu(ctx);
+});
+
+bot.callbackQuery("info_schedule", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showScheduleText(ctx);
+});
+
+bot.callbackQuery("info_groups", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showGroupsText(ctx);
+});
 
 // 0. Demos Rápidas
 bot.callbackQuery("demo_mes", async (ctx) => {

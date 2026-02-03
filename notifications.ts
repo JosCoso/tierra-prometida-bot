@@ -1,6 +1,7 @@
-import { Bot, InlineKeyboard } from "grammy";
+import { Bot, InlineKeyboard, InputFile } from "grammy";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import "dotenv/config";
+import * as path from "path";
 import { formatMonthlyMessage, formatWeeklyMessage, parseRowToEvent, ParsedEvent } from "./formatting.js";
 import { getVotes } from "./rsvp_storage.js";
 import { getGreeting } from "./greetings_utils.js";
@@ -352,6 +353,29 @@ export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, can
         }
 
         if (!sheet) return;
+
+        // --- ENVIAR IMAGEN DE PORTADA DEL MES ---
+        try {
+            // Construir nombre de archivo: "01_ENERO.png", "02_FEBRERO.png", etc.
+            // mesActual es 1-based (1 para Enero)
+            const numMesStr = String(mesActual).padStart(2, '0');
+            const nombreMesUpper = (nombresMeses[mesActual - 1] || "MES").toUpperCase();
+            const filename = `${numMesStr}_${nombreMesUpper}.png`;
+
+            // Asumiendo que 'images' está en la raíz del proyecto
+            const imagePath = path.resolve(process.cwd(), "images", filename);
+
+            console.log(`📸 Buscando imagen mensual: ${imagePath}`);
+
+            // Enviamos la foto antes del texto
+            await bot.api.sendPhoto(canalId, new InputFile(imagePath));
+            console.log(`✅ Imagen ${filename} enviada.`);
+        } catch (imgError) {
+            console.warn(`⚠️ No se pudo enviar imagen mensual: ${imgError}`);
+            // Continuamos con el texto aunque falle la imagen
+        }
+        // ----------------------------------------
+
 
         // 1. Cargar metadatos (Título y Descripción) de filas 1-2
         // A2 (1,0) -> Título

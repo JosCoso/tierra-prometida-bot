@@ -4,6 +4,7 @@ export async function showMenu(ctx: Context) {
     const keyboard = new InlineKeyboard()
         .text("📅 Semana", "demo_semana").text("☀️ Día", "demo_dia").row()
         .text("🗓 Mes", "demo_mes").text("📂 Específico", "menu_specific").row()
+        .text("ℹ️ Información", "menu_info").row()
         .text("❌ Cancelar", "cancel");
 
     await ctx.reply("🤖 *Menú Interactivo*\nSelecciona una opción:", {
@@ -86,6 +87,92 @@ export async function showDaysMenu(ctx: Context, month: string) {
     keyboard.row().text("🔙 Volver", `month:${month}`);
 
     await safeEditMessageText(ctx, `☀️ Selecciona el día de *${month}*:`, {
+        reply_markup: keyboard,
+        parse_mode: "Markdown"
+    });
+}
+
+// --- CONSTANTES DE INFORMACIÓN ESTÁTICA ---
+
+const TEXTO_HORARIOS = `
+🕒 *HORARIOS SEMANALES* 🕒
+
+*DOMINGO*
+• 8:45 y 11:00 am: Asamblea familiar.
+_(Semillero de la Fe, Tierra Kids y Conectados en ambos servicios)_
+• 11:00 am: Líderes de grupos de oración.
+• 11:00 am: Matrimonios Unidos (1er y 3er domingo).
+• 1:00 pm: Renovación - Crecimiento - Vencedores.
+• 1:00 pm: NEOS Service (jóvenes).
+
+*JUEVES*
+• 10:00 am: Oración de poder.
+• 6:00 pm: Rehabilitación.
+
+*VIERNES*
+• 10:00 am: MujeresTPrometida.
+_(Contamos con clases para niños)_
+
+*SÁBADO*
+• 11:00 am: Sé Sano.
+_(Contamos con clases para niños)_
+`;
+
+const TEXTO_GRUPOS = `
+👥 *TENEMOS UN LUGAR PARA TI (GRUPOS)* 👥
+
+🌱 *SEMILLERO DE LA FE*
+Es un espacio dedicado a los más pequeños de la familia, de 0 a 4 años con sus grupos: semillitas, plantitas, arbolitos y frutitas, te llevará de la mano en los primeros pasos de tu bebé.
+
+🎈 *TIERRA KIDS*
+Es el lugar donde los niños y niñas entre 4 y 11 años pueden conocer más de Dios por medio de alabanza, convivencia y clases específicas para su edad.
+
+🔗 *CONECTADOS*
+Es el sitio dedicado para todos nuestros adolescentes de 12 a 17 años, donde pueden expresarse, forjar lazos de amistad y crecer en la fe.
+
+🔥 *NEOS*
+Este es el punto de encuentro e intimidad con Dios para los jóvenes entre 18 y 30 años que buscan conocer más de Él.
+
+🛡️ *SIERVOS INÚTILES*
+Somos los hombres valientes y esforzados que quieren más del Señor y buscan llevar su mensaje de salvación a todo lugar.
+
+🌸 *MUJERESTPROMETIDA*
+Somos un grupo de Mujeres Amigas Motivadas a Amar Siempre. Anhelamos cambios en nuestras vidas, familias, trabajos y sociedad, que sólo con la ayuda de Jesucristo y estudiando la Biblia es posible.
+
+❤️‍🩹 *REHABILITACIÓN*
+Es el grupo de ayuda para quienes han sufrido alguna adicción y buscan una vida de libertad y plenitud en el Señor.
+
+📖 *RENOVACIÓN*
+Si has decidido seguir a Cristo, este es el primer curso para crecer en tu fe, aprender a leer la Biblia y prepararte para el bautismo en agua.
+`;
+
+
+// 5. Menú de Información
+export async function showInfoMenu(ctx: Context) {
+    const keyboard = new InlineKeyboard()
+        .text("🕒 Horarios", "info_schedule").row()
+        .text("👥 Ministerios", "info_groups").row()
+        .text("🔙 Volver", "menu_main");
+
+    await safeEditMessageText(ctx, "ℹ️ *Sección Informativa*\n¿Qué deseas consultar?", {
+        reply_markup: keyboard,
+        parse_mode: "Markdown"
+    });
+}
+
+// 6. Mostrar Horarios
+export async function showScheduleText(ctx: Context) {
+    const keyboard = new InlineKeyboard().text("🔙 Volver", "menu_info");
+    await safeEditMessageText(ctx, TEXTO_HORARIOS, {
+        reply_markup: keyboard,
+        parse_mode: "Markdown"
+    });
+}
+
+// 7. Mostrar Grupos
+export async function showGroupsText(ctx: Context) {
+    const keyboard = new InlineKeyboard().text("🔙 Volver", "menu_info");
+    await safeEditMessageText(ctx, TEXTO_GRUPOS, {
         reply_markup: keyboard,
         parse_mode: "Markdown"
     });
