@@ -118,7 +118,7 @@ export function getWeekDateRange(year: number, monthIndex: number, weekNumber: n
 }
 
 // A) Resumen Semanal (Lunes)
-export async function enviarResumenSemanal(bot: Bot, doc: GoogleSpreadsheet, canalId: string, simulatedDate?: Date) {
+export async function enviarResumenSemanal(bot: Bot, doc: GoogleSpreadsheet, canalId: string | number, simulatedDate?: Date) {
     try {
         console.log("Generando resumen semanal...");
         await doc.loadInfo();
@@ -212,7 +212,7 @@ export async function enviarResumenSemanal(bot: Bot, doc: GoogleSpreadsheet, can
 }
 
 // B) Recordatorio Diario (Hoy)
-export async function enviarRecordatorioDiario(bot: Bot, doc: GoogleSpreadsheet, canalId: string, simulatedDate?: Date) {
+export async function enviarRecordatorioDiario(bot: Bot, doc: GoogleSpreadsheet, canalId: string | number, simulatedDate?: Date) {
     try {
         console.log("Verificando eventos de hoy...");
         await doc.loadInfo();
@@ -316,7 +316,7 @@ export function getMonthlyPhrase(monthName: string): string {
 
 // C) Resumen Mensual (Día 1 del mes)
 // C) Resumen Mensual (Día 1 del mes)
-export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, canalId: string, mesNombre?: string) {
+export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, canalId: string | number, mesNombre?: string) {
     try {
         console.log("Generando resumen mensual...");
         await doc.loadInfo();

@@ -43,7 +43,7 @@ const doc = new GoogleSpreadsheet(SPREADSHEET_ID, serviceAccountAuth);
 const TIMEZONE = process.env.TIMEZONE || "America/Mexico_City";
 
 import { enviarResumenSemanal, enviarRecordatorioDiario, enviarResumenMensual, parseDateFromSheet, getMonthlyPhrase, getMonthNumber, getWeekDateRange } from "./notifications.js";
-import { setupTestCommands } from "./test_commands.js";
+
 import { formatMonthlyMessage, formatWeeklyMessage, parseRowToEvent, ParsedEvent } from "./formatting.js";
 import { scheduleDailySummary } from "./scheduler.js";
 import { toggleVote } from "./rsvp_storage.js";
@@ -75,7 +75,8 @@ cron.schedule("0 9 * * 1", () => {
 cron.schedule("1 0 * * *", () => {
     scheduleDailySummary(bot, doc, CANAL_ID);
     // También checar eventos estelares (5 días antes)
-    import("./scheduler.js").then(m => m.checkStellarEvents(bot, doc, CANAL_ID));
+    // FREEZE: Desactivado temporalmente por solicitud del usuario
+    // import("./scheduler.js").then(m => m.checkStellarEvents(bot, doc, CANAL_ID));
 }, cronOptions);
 
 console.log(`Bot iniciado. Zona horaria: ${TIMEZONE}`);
@@ -88,7 +89,7 @@ console.log("Programación: Mensual (Día 1), Semanal (Lun) y Diario (Todos los 
 scheduleDailySummary(bot, doc, CANAL_ID);
 
 // Configurar comandos de prueba
-setupTestCommands(bot, doc, CANAL_ID);
+
 
 // Handler para el botón de RSVP
 // Handler para el botón de RSVP
@@ -123,11 +124,6 @@ bot.on("callback_query:data", async (ctx, next) => {
 // Configurar Menú Persistente
 await bot.api.setMyCommands([
     { command: "menu", description: "🤖 Menú Interactivo" },
-    { command: "semana", description: "📅 Resumen Semanal (Actual)" },
-    { command: "dia", description: "☀️ Eventos de Hoy" },
-    { command: "todo", description: "🗓 Calendario del Mes" },
-    { command: "simular_lunes", description: "🔮 Simular Lunes (Test)" },
-    { command: "ayuda", description: "ℹ️ Ayuda y Comandos" },
 ]);
 
 // Handler para el botón de Demo
@@ -149,9 +145,16 @@ Puedes cambiar la fecha que prefieras para probar cualquier día/semana/mes.`;
     // Pero si es un botón de menú personal, tal vez debería ser al usuario.
     // Sin embargo, la solicitud explícita fue "mandar al canal".
     // Usaremos CANAL_ID.
-    if (CANAL_ID) {
-        await bot.api.sendMessage(CANAL_ID, texto, { parse_mode: "Markdown" });
-        await ctx.reply("✅ Información de demo enviada al canal.");
+    // Determinar destino: En producción al Canal, en desarrollo al chat actual
+    const targetChatId = process.env.NODE_ENV === 'development' ? ctx.chat?.id : CANAL_ID;
+
+    if (targetChatId) {
+        await bot.api.sendMessage(targetChatId, texto, { parse_mode: "Markdown" });
+        if (process.env.NODE_ENV === 'development') {
+            await ctx.reply("✅ Información enviada a este chat (Modo Desarrollo).");
+        } else {
+            await ctx.reply("✅ Información enviada al canal (Modo Producción).");
+        }
     }
 });
 
@@ -163,8 +166,15 @@ import { showSpecificMenu, showMonthActions, showWeeksMenu, showDaysMenu, showMe
 // 0. Demos Rápidas
 bot.callbackQuery("demo_mes", async (ctx) => {
     await ctx.answerCallbackQuery("Generando resumen de Enero...");
-    await enviarResumenMensual(bot, doc, CANAL_ID, "Enero");
-    await ctx.reply("✅ Demo Mensual (Enero) enviada al canal.");
+    const targetChatId = process.env.NODE_ENV === 'development' ? ctx.chat?.id : CANAL_ID;
+    if (!targetChatId) return;
+
+    await enviarResumenMensual(bot, doc, targetChatId, "Enero");
+
+    const msg = process.env.NODE_ENV === 'development'
+        ? "✅ Demo Mensual (Enero) enviada a este chat (Dev)."
+        : "✅ Demo Mensual (Enero) enviada al canal.";
+    await ctx.reply(msg);
 });
 
 bot.callbackQuery("demo_semana", async (ctx) => {
@@ -172,8 +182,14 @@ bot.callbackQuery("demo_semana", async (ctx) => {
     const targetYear = process.env.TARGET_YEAR ? parseInt(process.env.TARGET_YEAR, 10) : new Date().getFullYear();
     const range = getWeekDateRange(targetYear, 0, 1); // Semana 1 Enero
     if (range) {
-        await enviarResumenSemanal(bot, doc, CANAL_ID, range.start);
-        await ctx.reply(`✅ Demo Semanal (Semana 1 Enero) enviada al canal.`);
+        const targetChatId = process.env.NODE_ENV === 'development' ? ctx.chat?.id : CANAL_ID;
+        if (targetChatId) {
+            await enviarResumenSemanal(bot, doc, targetChatId, range.start);
+            const msg = process.env.NODE_ENV === 'development'
+                ? `✅ Demo Semanal enviada a este chat (Dev).`
+                : `✅ Demo Semanal enviada al canal.`;
+            await ctx.reply(msg);
+        }
     } else {
         await ctx.reply("❌ Error al calcular la semana simulada.");
     }
@@ -183,8 +199,14 @@ bot.callbackQuery("demo_dia", async (ctx) => {
     await ctx.answerCallbackQuery("Generando resumen diario...");
     const targetYear = process.env.TARGET_YEAR ? parseInt(process.env.TARGET_YEAR, 10) : new Date().getFullYear();
     const simulatedDate = new Date(targetYear, 0, 4); // 4 Enero
-    await enviarRecordatorioDiario(bot, doc, CANAL_ID, simulatedDate);
-    await ctx.reply("✅ Demo Diaria (4 de Enero) enviada al canal.");
+    const targetChatId = process.env.NODE_ENV === 'development' ? ctx.chat?.id : CANAL_ID;
+    if (!targetChatId) return;
+
+    await enviarRecordatorioDiario(bot, doc, targetChatId, simulatedDate);
+    const msg = process.env.NODE_ENV === 'development'
+        ? "✅ Demo Diaria enviada a este chat (Dev)."
+        : "✅ Demo Diaria enviada al canal.";
+    await ctx.reply(msg);
 });
 
 // 1. Menú Principal -> Específico
@@ -225,8 +247,17 @@ bot.callbackQuery(/^act_month:(.+)$/, async (ctx) => {
     const month = match[1];
     await ctx.answerCallbackQuery(`Generando resumen de ${month}...`);
     // Fire-and-forget para evitar timeouts
-    enviarResumenMensual(bot, doc, CANAL_ID, month)
-        .then(() => ctx.reply(`✅ Resumen Mensual (${month}) enviado al canal.`))
+    const targetChatId = process.env.NODE_ENV === 'development' ? ctx.chat?.id : CANAL_ID;
+    if (!targetChatId) return;
+
+    // Fire-and-forget para evitar timeouts
+    enviarResumenMensual(bot, doc, targetChatId, month)
+        .then(() => {
+            const msg = process.env.NODE_ENV === 'development'
+                ? `✅ Resumen Mensual (${month}) enviado a este chat.`
+                : `✅ Resumen Mensual (${month}) enviado al canal.`;
+            ctx.reply(msg);
+        })
         .catch(err => ctx.reply(`❌ Error: ${err.message || err}`));
 });
 
@@ -255,8 +286,17 @@ bot.callbackQuery(/^act_week:(.+):(\d+)$/, async (ctx) => {
 
     if (range) {
         // Fire-and-forget
-        enviarResumenSemanal(bot, doc, CANAL_ID, range.start)
-            .then(() => ctx.reply(`✅ Resumen Semanal (Semana ${weekNum} ${month}) enviado al canal.`))
+        const targetChatId = process.env.NODE_ENV === 'development' ? ctx.chat?.id : CANAL_ID;
+        if (!targetChatId) return;
+
+        // Fire-and-forget
+        enviarResumenSemanal(bot, doc, targetChatId, range.start)
+            .then(() => {
+                const msg = process.env.NODE_ENV === 'development'
+                    ? `✅ Resumen Semanal (${month}) enviado a este chat.`
+                    : `✅ Resumen Semanal (${month}) enviado al canal.`;
+                ctx.reply(msg);
+            })
             .catch(err => ctx.reply(`❌ Error: ${err.message || err}`));
     } else {
         await ctx.reply(`❌ No se pudo calcular la semana ${weekNum} de ${month}.`);
@@ -288,8 +328,18 @@ bot.callbackQuery(/^act_day:(.+):(\d+)$/, async (ctx) => {
 
     // NO esperar a que termine (fire-and-forget) para evitar timeout del webhook de Telegram
     // Telegram reintenta si no respondemos 200 OK rápido, lo que causa mensajes duplicados.
-    enviarRecordatorioDiario(bot, doc, CANAL_ID, simulatedDate)
-        .then(() => ctx.reply(`✅ Resumen Diario (${day} de ${month}) enviado al canal.`))
+    const targetChatId = process.env.NODE_ENV === 'development' ? ctx.chat?.id : CANAL_ID;
+    if (!targetChatId) return;
+
+    // NO esperar a que termine (fire-and-forget) para evitar timeout del webhook de Telegram
+    // Telegram reintenta si no respondemos 200 OK rápido, lo que causa mensajes duplicados.
+    enviarRecordatorioDiario(bot, doc, targetChatId, simulatedDate)
+        .then(() => {
+            const msg = process.env.NODE_ENV === 'development'
+                ? `✅ Resumen Diario (${day} ${month}) enviado a este chat.`
+                : `✅ Resumen Diario (${day} ${month}) enviado al canal.`;
+            ctx.reply(msg);
+        })
         .catch((err) => {
             console.error("❌ Error en background enviarRecordatorioDiario:", err);
             ctx.reply(`❌ Error enviando resumen: ${err.message || err}`);
@@ -314,22 +364,7 @@ bot.command("menu", async (ctx) => {
 });
 
 // Comando de Ayuda
-bot.command("ayuda", async (ctx) => {
-    const helpText = `
-🤖 *Comandos Disponibles:*
 
-🔹 */menu* - Abre el menú interactivo
-🔹 */semana [N] [Mes]* - Resumen de una semana
-🔹 */dia [N] [Mes]* - Eventos de un día
-🔹 */todo [Mes]* - Calendario del mes
-
-Ejemplos:
-- /semana 2 Enero
-- /dia 4 Enero
-- /todo Enero
-`;
-    await ctx.reply(helpText, { parse_mode: "Markdown" });
-});
 
 // --- MENÚ INTERACTIVO A LA CARTA ---
 
@@ -343,192 +378,13 @@ async function getSheetByMonthName(monthName: string) {
 }
 
 // 1. COMANDO: "Todo [Mes]" o "/todo [Mes]"
-bot.on("message:text", async (ctx, next) => {
-    const text = ctx.message.text || "";
 
-    // Regex para "Todo [Mes]" o "/todo [Mes]"
-    const matchTodo = text.match(/^(?:todo|\/todo)\s+(\w+)/i);
-    if (matchTodo && matchTodo[1]) {
-        const mesSolicitado = matchTodo[1];
-        const sheet = await getSheetByMonthName(mesSolicitado);
-
-        if (!sheet) {
-            return ctx.reply(`❌ No encontré una pestaña para el mes "${mesSolicitado}".Asegúrate de que exista en el Google Sheet.`);
-        }
-
-        // 1. Cargar metadatos (Título y Descripción) de filas 1-2
-        await sheet.loadCells('A2:B2');
-        const tituloPersonalizado = sheet.getCell(1, 0).value?.toString() || "";
-        const descripcionPersonalizada = sheet.getCell(1, 1).value?.toString() || "";
-
-        // 2. Cargar headers de fila 3
-        await sheet.loadHeaderRow(3);
-        const rows = await sheet.getRows();
-
-        const mesNum = getMonthNumber(mesSolicitado);
-
-        // Usar el nuevo módulo de formato
-        const mensaje = formatMonthlyMessage(
-            rows,
-            {
-                title: tituloPersonalizado,
-                description: descripcionPersonalizada,
-                monthName: mesSolicitado
-            },
-            mesNum
-        );
-
-        return ctx.reply(mensaje, { parse_mode: "Markdown" });
-    }
-
-    // Continuar con otros handlers si no hubo match
-    await next();
-});
 
 // 2. COMANDO: "[Mes] Semana [N]" o "/semana [N] [Mes]"
-bot.on("message:text", async (ctx, next) => {
-    const text = ctx.message.text || "";
 
-    // Dos formatos: "Enero Semana 2" O "/semana 2 Enero"
-    let mesSolicitado = "";
-    let numeroSemana = 0;
-
-    const matchFormato1 = text.match(/^(\w+)\s+semana\s+(\d+)/i); // "Enero Semana 2"
-    const matchFormato2 = text.match(/^\/semana\s+(\d+)\s+(\w+)/i); // "/semana 2 Enero"
-
-    if (matchFormato1 && matchFormato1[1] && matchFormato1[2]) {
-        mesSolicitado = matchFormato1[1];
-        numeroSemana = parseInt(matchFormato1[2], 10);
-    } else if (matchFormato2 && matchFormato2[1] && matchFormato2[2]) {
-        numeroSemana = parseInt(matchFormato2[1], 10);
-        mesSolicitado = matchFormato2[2];
-    } else {
-        return next(); // No es este comando
-    }
-
-
-
-
-    // Calcular fechas de la semana solicitada usando lógica de calendario (Lun-Dom)
-    const targetYear = process.env.TARGET_YEAR ? parseInt(process.env.TARGET_YEAR, 10) : new Date().getFullYear();
-    const mesNum = getMonthNumber(mesSolicitado);
-
-    const range = getWeekDateRange(targetYear, mesNum - 1, numeroSemana);
-
-    if (!range) {
-        return ctx.reply(`❌ No encontré la semana ${numeroSemana} en ${mesSolicitado}. Puede que el mes tenga menos semanas.`);
-    }
-
-    // 2. Identificar meses involucrados
-    const startMonthIndex = range.start.getMonth();
-    const endMonthIndex = range.end.getMonth();
-
-    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    const startMonthName = meses[startMonthIndex] || "Enero";
-    const endMonthName = meses[endMonthIndex] || "Enero";
-
-    // 3. Obtener eventos de las hojas necesarias
-    const eventos: ParsedEvent[] = [];
-
-    // Función auxiliar (similar a notifications.ts)
-    const loadEventsForMonth = async (monthName: string) => {
-        const sheet = doc.sheetsByIndex.find(s => s.title.toUpperCase().includes(monthName.toUpperCase()));
-        if (!sheet) return;
-
-        await sheet.loadHeaderRow(3);
-        const rows = await sheet.getRows();
-
-        for (const row of rows) {
-            const evt = parseRowToEvent(row, monthName);
-            if (evt) eventos.push(evt);
-        }
-    };
-
-    await loadEventsForMonth(startMonthName);
-
-    if (startMonthIndex !== endMonthIndex) {
-        await loadEventsForMonth(endMonthName);
-    }
-
-    const headerMonthName = startMonthIndex !== endMonthIndex ? `${startMonthName}/${endMonthName}` : startMonthName;
-
-    const mensaje = formatWeeklyMessage(
-        eventos,
-        range.start,
-        range.end,
-        startMonthIndex,
-        headerMonthName,
-        range.isLastWeek // Flag para "última semana"
-    );
-
-    return ctx.reply(mensaje, { parse_mode: "Markdown" });
-});
 
 // 3. COMANDO: "[Día] de [Mes]" o "/dia [Día] [Mes]"
-bot.on("message:text", async (ctx) => {
-    const text = ctx.message.text || "";
 
-    // Dos formatos: "4 de Enero" O "/dia 4 Enero"
-    let mesSolicitado = "";
-    let diaSolicitado = 0;
-
-    const matchFormato1 = text.match(/^(\d+)\s+de\s+(\w+)/i); // "4 de Enero"
-    const matchFormato2 = text.match(/^\/dia\s+(\d+)\s+(\w+)/i); // "/dia 4 Enero"
-
-    if (matchFormato1 && matchFormato1[1] && matchFormato1[2]) {
-        diaSolicitado = parseInt(matchFormato1[1], 10);
-        mesSolicitado = matchFormato1[2];
-    } else if (matchFormato2 && matchFormato2[1] && matchFormato2[2]) {
-        diaSolicitado = parseInt(matchFormato2[1], 10);
-        mesSolicitado = matchFormato2[2];
-    } else {
-        return; // No es ningún comando conocido, ignorar.
-    }
-
-    const sheet = await getSheetByMonthName(mesSolicitado);
-    if (!sheet) {
-        return ctx.reply(`❌ No encontré una pestaña para el mes "${mesSolicitado}".`);
-    }
-
-    // Cargar headers de fila 3
-    await sheet.loadHeaderRow(3);
-    const rows = await sheet.getRows();
-    let eventosDelDia: any[] = [];
-
-    for (const row of rows) {
-        const evento = row.get("Evento");
-        if (!evento || evento === "undefined") continue;
-
-        const dia = parseInt(row.get("Día"), 10);
-        if (dia === diaSolicitado) {
-            eventosDelDia.push(row);
-        }
-    }
-
-    if (eventosDelDia.length === 0) {
-        return ctx.reply(`El ${diaSolicitado} de ${mesSolicitado} no tiene actividades registradas.`);
-    }
-
-    let mensaje = `🔔 *Simulacro para el ${diaSolicitado} de ${mesSolicitado}:*\nEl día de hoy tendremos las siguientes actividades:\n\n`;
-
-    for (const row of eventosDelDia) {
-        const evento = row.get("Evento");
-        const hora = row.get("Hora") || "Sin hora";
-        const descripcion = row.get("Descripción");
-        const estado = row.get("Estado");
-
-        if (estado === "Cancelado") {
-            mensaje += `❌ (CANCELADO) - ${evento}\n`;
-        } else {
-            mensaje += `📍 *${hora}* ${evento}\n`;
-            if (row.get("Lugar")) mensaje += `   📍 Lugar: ${row.get("Lugar")}\n`;
-            if (descripcion) mensaje += `   ℹ️ Detalles: ${descripcion}\n`;
-        }
-        mensaje += "\n";
-    }
-
-    return ctx.reply(mensaje, { parse_mode: "Markdown" });
-});
 
 // COMANDO DE DEBUG
 bot.command("debug_sheet", async (ctx) => {
@@ -577,9 +433,14 @@ app.get("/", (req, res) => {
 // --- TELEGRAM WEBHOOK ---
 // Configurar webhook de Telegram en la ruta /telegram
 // IMPORTANTE: Debes configurar el webhook manualmente una vez:
-// https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<TU-DOMINIO>/telegram
+// --- TELEGRAM WEBHOOK ---
+// IMPORTANTE: En DESARROLLO usamos Long Polling, así que NO activamos el webhook receiver de Telegram
+// para evitar conflictos. En PRODUCCION sí.
 import { webhookCallback } from "grammy";
-app.post("/telegram", webhookCallback(bot, "express"));
+
+if (process.env.NODE_ENV !== 'development') {
+    app.post("/telegram", webhookCallback(bot, "express"));
+}
 
 // --- WHATSAPP WEBHOOK ---
 // Webhook de Verificación (Meta te pedirá esto al configurar)
@@ -650,6 +511,14 @@ app.listen(PORT, async () => {
     try {
         const botInfo = await bot.api.getMe();
         console.log(`🤖 Bot de Telegram conectado: @${botInfo.username}`);
+
+        // Si estamos en desarrollo, iniciar Polling para no depender de Webhook público
+        if (process.env.NODE_ENV === 'development') {
+            console.log("🚀 MODO DESARROLLO DETECTADO: Limpiando Webhook e iniciando Long Polling...");
+            // Es crucial borrar el webhook antes de iniciar polling, o Telegram dará error
+            await bot.api.deleteWebhook();
+            bot.start();
+        }
     } catch (e) {
         console.error("⚠️ Error al conectar con Telegram (revisa el Token):", e);
     }
