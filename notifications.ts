@@ -4,7 +4,7 @@ import "dotenv/config";
 import * as path from "path";
 import { formatMonthlyMessage, formatWeeklyMessage, parseRowToEvent, ParsedEvent } from "./formatting.js";
 import { getVotes } from "./rsvp_storage.js";
-import { getGreeting } from "./greetings_utils.js";
+import { getGreeting, getTimeBasedGreeting } from "./greetings_utils.js";
 import { whatsappService } from "./whatsapp_service.js";
 
 // ID del Canal de WhatsApp (o número de destino si fuera chat directo - Plan B)
@@ -273,7 +273,8 @@ export async function enviarRecordatorioDiario(bot: Bot, doc: GoogleSpreadsheet,
 
             const diaNum = hoy.getDate();
             // mesNombre ya fue calculado arriba
-            let mensaje = `☀️ *¡BUENOS DÍAS! HOY EN TIERRA PROMETIDA:*\n\n${saludoIA}\n\n📅 *${diaNum} de ${mesNombre}*\n\n`;
+            const tiempoSaludo = getTimeBasedGreeting(hoy);
+            let mensaje = `☀️ *${tiempoSaludo} HOY EN TIERRA PROMETIDA:*\n\n${saludoIA}\n\n📅 *${diaNum} de ${mesNombre}*\n\n`;
             for (const row of eventosHoy) {
                 mensaje += ` *${row.get("Evento")}*\n`;
                 if (row.get("Hora")) mensaje += `   ⏰ Hora: ${row.get("Hora")}\n`;

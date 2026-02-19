@@ -452,7 +452,23 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 app.get("/", (req, res) => {
-    res.send("Bot is running 🚀");
+    res.send("Bot is running 🚀. Go to <a href='/debug'>/debug</a> for status.");
+});
+
+app.get("/debug", async (req, res) => {
+    try {
+        const webhookInfo = await bot.api.getWebhookInfo();
+        res.json({
+            status: "ok",
+            node_env: process.env.NODE_ENV,
+            domain_env: process.env.DOMAIN,
+            port: PORT,
+            webhook_info: webhookInfo,
+            server_time: new Date().toISOString()
+        });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message || e });
+    }
 });
 
 // --- TELEGRAM WEBHOOK ---
@@ -542,7 +558,19 @@ app.listen(PORT, async () => {
             console.log("🚀 MODO DESARROLLO DETECTADO: Limpiando Webhook e iniciando Long Polling...");
             // Es crucial borrar el webhook antes de iniciar polling, o Telegram dará error
             await bot.api.deleteWebhook();
-            bot.start();
+            await bot.start();
+        } else if (process.env.DOMAIN) {
+            // En producción, configurar el webhook automáticamente si existe la variable DOMAIN
+            try {
+                const domain = process.env.DOMAIN;
+                const webhookUrl = `${domain}/telegram`;
+                await bot.api.setWebhook(webhookUrl);
+                console.log(`✅ Webhook configurado en: ${webhookUrl}`);
+            } catch (webhookError) {
+                console.error("❌ Error configurando webhook:", webhookError);
+            }
+        } else {
+            console.warn("⚠️ ADVERTENCIA: No se encontró la variable DOMAIN en producción. Asegúrate de configurar el Webhook manualmente.");
         }
     } catch (e) {
         console.error("⚠️ Error al conectar con Telegram (revisa el Token):", e);

@@ -37,3 +37,21 @@ export function getGreeting(type: 'monthly' | 'weekly', monthIndex: number, mont
 
     return greeting;
 }
+
+/**
+ * Devuelve un saludo basado en la hora del día.
+ * - 05:00 a 11:59 -> ¡BUENOS DÍAS!
+ * - 12:00 a 18:59 -> ¡BUENAS TARDES!
+ * - 19:00 a 04:59 -> ¡BUENAS NOCHES!
+ */
+export function getTimeBasedGreeting(date: Date): string {
+    const hour = date.getHours();
+
+    if (hour >= 5 && hour < 12) {
+        return "¡BUENOS DÍAS!";
+    } else if (hour >= 12 && hour < 19) {
+        return "¡BUENAS TARDES!";
+    } else {
+        return "¡BUENAS NOCHES!";
+    }
+}
