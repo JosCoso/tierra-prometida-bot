@@ -483,9 +483,12 @@ const validateApiKey = (req: express.Request, res: express.Response, next: expre
 // --- NUEVO ENDPOINT PARA AGENDA ---
 app.get("/api/v1/agenda", validateApiKey, async (req, res) => {
     try {
-        const { rows, metadata, mesNumero } = await getEventsForMonth(doc);
+        const queryMonth = req.query.month as string | undefined;
+        const queryWeek = req.query.week ? parseInt(req.query.week as string, 10) : undefined;
 
-        const agenda = rows.map(row => {
+        const { rows, metadata, mesNumero } = await getEventsForMonth(doc, queryMonth);
+
+        let agenda = rows.map(row => {
             const evt = parseRowToEvent(row, metadata.monthName);
             if (!evt) return null;
 
@@ -497,6 +500,21 @@ app.get("/api/v1/agenda", validateApiKey, async (req, res) => {
                 descripcion: evt.descripcion || ""
             };
         }).filter((item): item is NonNullable<typeof item> => item !== null);
+
+        // Filtrar por semana si se solicita
+        if (queryWeek && queryWeek >= 1 && queryWeek <= 5) {
+            const ranges = [
+                { start: 1, end: 7 },
+                { start: 8, end: 14 },
+                { start: 15, end: 21 },
+                { start: 22, end: 28 },
+                { start: 29, end: 31 }
+            ];
+            const range = ranges[queryWeek - 1];
+            if (range) {
+                agenda = agenda.filter(evt => evt.dia >= range.start && evt.dia <= range.end);
+            }
+        }
 
         // Ordenar eventos por día (ascendente)
         agenda.sort((a, b) => a.dia - b.dia);
