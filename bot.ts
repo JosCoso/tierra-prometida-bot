@@ -455,6 +455,9 @@ app.get("/", (req, res) => {
     res.send("Bot is running 🚀. Go to <a href='/debug'>/debug</a> for status.");
 });
 
+// Servir imágenes estáticas públicamente
+app.use("/images", express.static("images"));
+
 // Middleware de CORS manual (para no añadir dependencias si no es necesario)
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
@@ -480,7 +483,7 @@ const validateApiKey = (req: express.Request, res: express.Response, next: expre
 // --- NUEVO ENDPOINT PARA AGENDA ---
 app.get("/api/v1/agenda", validateApiKey, async (req, res) => {
     try {
-        const { rows, metadata } = await getEventsForMonth(doc);
+        const { rows, metadata, mesNumero } = await getEventsForMonth(doc);
 
         const agenda = rows.map(row => {
             const evt = parseRowToEvent(row, metadata.monthName);
@@ -488,15 +491,31 @@ app.get("/api/v1/agenda", validateApiKey, async (req, res) => {
 
             return {
                 dia: evt.dia,
-                mes: metadata.monthName,
                 nombre: evt.nombre,
                 hora: evt.hora || "",
                 lugar: evt.lugar || "",
                 descripcion: evt.descripcion || ""
             };
-        }).filter(item => item !== null);
+        }).filter((item): item is NonNullable<typeof item> => item !== null);
 
-        res.json(agenda);
+        // Ordenar eventos por día (ascendente)
+        agenda.sort((a, b) => a.dia - b.dia);
+
+        // Construir URL de la imagen
+        // Usar DOMAIN del .env o inferir del host de la petición
+        const domain = process.env.DOMAIN || `${req.protocol}://${req.get("host")}`;
+        const nombresMeses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+        const numMesStr = String(mesNumero).padStart(2, '0');
+        const nombreMesUpper = nombresMeses[mesNumero - 1];
+        const imagenUrl = `${domain}/images/${numMesStr}_${nombreMesUpper}.png`;
+
+        res.json({
+            mes: metadata.monthName,
+            lema: metadata.lema,
+            versiculo: metadata.versiculo,
+            imagenUrl,
+            eventos: agenda
+        });
     } catch (error: any) {
         console.error("❌ Error en API agenda:", error);
         res.status(500).json({ error: error.message || "Internal Server Error" });

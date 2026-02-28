@@ -353,8 +353,10 @@ export async function getEventsForMonth(doc: GoogleSpreadsheet, mesNombre?: stri
         return {
             rows,
             metadata: {
-                title: tituloPersonalizado,
-                description: descripcionPersonalizada,
+                title: tituloPersonalizado, // Alias para compatibilidad
+                description: descripcionPersonalizada, // Alias para compatibilidad
+                lema: tituloPersonalizado,
+                versiculo: descripcionPersonalizada,
                 monthName: nombresMeses[mesActual - 1] || "Mes"
             },
             mesNumero: mesActual,
