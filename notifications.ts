@@ -316,51 +316,75 @@ export function getMonthlyPhrase(monthName: string): string {
     return "";
 }
 
-// C) Resumen Mensual (Día 1 del mes)
-// C) Resumen Mensual (Día 1 del mes)
-export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, canalId: string | number, mesNombre?: string) {
+// D. Obtener Eventos por Mes (Helper para API y Mensajes)
+export async function getEventsForMonth(doc: GoogleSpreadsheet, mesNombre?: string) {
     try {
-        console.log("Generando resumen mensual...");
         await doc.loadInfo();
-
         let sheet;
         let mesActual;
-        let nombreMes: string;
-
         const nombresMeses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
         if (mesNombre) {
-            // Si se especifica un mes, buscamos esa hoja
-            nombreMes = mesNombre;
             sheet = doc.sheetsByIndex.find(s => s.title.toUpperCase().includes(mesNombre.toUpperCase()));
-            if (!sheet) {
-                console.log(`No se encontró hoja para el mes: ${mesNombre}`);
-                return;
-            }
             mesActual = getMonthNumber(mesNombre);
         } else {
-            // Si no, usamos el mes actual
             const hoy = getCurrentDateInTimezone();
             mesActual = hoy.getMonth() + 1;
-            nombreMes = nombresMeses[mesActual - 1] || "Mes Actual";
-
-            // Intentamos buscar por nombre primero, si no, fallback al index 0 (comportamiento anterior, aunque arriesgado si cambian orden)
-            // Para mantener compatibilidad con lo que hemos visto, asumimos que las hojas se llaman "ENERO", "FEBRERO", etc.
+            const nombreMes = nombresMeses[mesActual - 1] || "Mes Actual";
             sheet = doc.sheetsByIndex.find(s => s.title.toUpperCase().includes(nombreMes.toUpperCase()));
             if (!sheet) {
-                // Fallback al sheet 0 si no encuentra por nombre (legacy behavior)
                 sheet = doc.sheetsByIndex[0];
             }
         }
 
-        if (!sheet) return;
+        if (!sheet) {
+            return { rows: [], metadata: { title: "", description: "", monthName: mesNombre || "Mes" }, mesNumero: mesActual };
+        }
+
+        // Cargar metadatos (Título y Descripción) de filas 1-2
+        await sheet.loadCells('A2:B2');
+        const tituloPersonalizado = sheet.getCell(1, 0).value?.toString() || "";
+        const descripcionPersonalizada = sheet.getCell(1, 1).value?.toString() || "";
+
+        // Cargar headers de fila 3
+        await sheet.loadHeaderRow(3);
+        const rows = await sheet.getRows();
+
+        return {
+            rows,
+            metadata: {
+                title: tituloPersonalizado,
+                description: descripcionPersonalizada,
+                monthName: nombresMeses[mesActual - 1] || "Mes"
+            },
+            mesNumero: mesActual,
+            sheetTitle: sheet.title
+        };
+    } catch (error) {
+        console.error("Error obteniendo eventos por mes:", error);
+        throw error;
+    }
+}
+
+// C) Resumen Mensual (Día 1 del mes)
+export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, canalId: string | number, mesNombre?: string) {
+    try {
+        console.log("Generando resumen mensual...");
+
+        const { rows, metadata, mesNumero } = await getEventsForMonth(doc, mesNombre);
+        if (rows.length === 0 && !metadata.title) {
+            console.log("No se encontró la hoja o no hay datos.");
+            return;
+        }
+
+        const nombresMeses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
         // --- ENVIAR IMAGEN DE PORTADA DEL MES ---
         try {
             // Construir nombre de archivo: "01_ENERO.png", "02_FEBRERO.png", etc.
             // mesActual es 1-based (1 para Enero)
-            const numMesStr = String(mesActual).padStart(2, '0');
-            const nombreMesUpper = (nombresMeses[mesActual - 1] || "MES").toUpperCase();
+            const numMesStr = String(mesNumero).padStart(2, '0');
+            const nombreMesUpper = (nombresMeses[mesNumero - 1] || "MES").toUpperCase();
             const filename = `${numMesStr}_${nombreMesUpper}.png`;
 
             // Asumiendo que 'images' está en la raíz del proyecto
@@ -385,26 +409,11 @@ export async function enviarResumenMensual(bot: Bot, doc: GoogleSpreadsheet, can
         // ----------------------------------------
 
 
-        // 1. Cargar metadatos (Título y Descripción) de filas 1-2
-        // A2 (1,0) -> Título
-        // B2 (1,1) -> Descripción
-        await sheet.loadCells('A2:B2');
-        const tituloPersonalizado = sheet.getCell(1, 0).value?.toString() || "";
-        const descripcionPersonalizada = sheet.getCell(1, 1).value?.toString() || "";
-
-        // 2. Cargar headers de fila 3
-        await sheet.loadHeaderRow(3);
-        const rows = await sheet.getRows();
-
         // Usar el módulo de formato unificado
         const mensaje = formatMonthlyMessage(
             rows,
-            {
-                title: tituloPersonalizado,
-                description: descripcionPersonalizada,
-                monthName: nombreMes
-            },
-            mesActual
+            metadata,
+            mesNumero
         );
 
         await bot.api.sendMessage(canalId, mensaje, { parse_mode: "Markdown" });

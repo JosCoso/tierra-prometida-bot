@@ -46,7 +46,7 @@ const doc = new GoogleSpreadsheet(SPREADSHEET_ID, serviceAccountAuth);
 // 2. LÓGICA DE FECHAS Y ZONA HORARIA
 const TIMEZONE = process.env.TIMEZONE || "America/Mexico_City";
 
-import { enviarResumenSemanal, enviarRecordatorioDiario, enviarResumenMensual, parseDateFromSheet, getMonthlyPhrase, getMonthNumber, getWeekDateRange } from "./notifications.js";
+import { enviarResumenSemanal, enviarRecordatorioDiario, enviarResumenMensual, parseDateFromSheet, getMonthlyPhrase, getMonthNumber, getWeekDateRange, getEventsForMonth } from "./notifications.js";
 
 import { formatMonthlyMessage, formatWeeklyMessage, parseRowToEvent, ParsedEvent } from "./formatting.js";
 import { scheduleDailySummary } from "./scheduler.js";
@@ -453,6 +453,54 @@ app.use(express.json());
 
 app.get("/", (req, res) => {
     res.send("Bot is running 🚀. Go to <a href='/debug'>/debug</a> for status.");
+});
+
+// Middleware de CORS manual (para no añadir dependencias si no es necesario)
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, x-api-key");
+    res.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
+// Middleware de Seguridad (API_KEY)
+const validateApiKey = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const apiKey = req.headers["x-api-key"];
+    const validKey = process.env.AGENDA_API_KEY || "botconnect_secret_key";
+
+    if (!apiKey || apiKey !== validKey) {
+        return res.status(401).json({ error: "Unauthorized: Invalid or missing API Key" });
+    }
+    next();
+};
+
+// --- NUEVO ENDPOINT PARA AGENDA ---
+app.get("/api/v1/agenda", validateApiKey, async (req, res) => {
+    try {
+        const { rows, metadata } = await getEventsForMonth(doc);
+
+        const agenda = rows.map(row => {
+            const evt = parseRowToEvent(row, metadata.monthName);
+            if (!evt) return null;
+
+            return {
+                dia: evt.dia,
+                mes: metadata.monthName,
+                nombre: evt.nombre,
+                hora: evt.hora || "",
+                lugar: evt.lugar || "",
+                descripcion: evt.descripcion || ""
+            };
+        }).filter(item => item !== null);
+
+        res.json(agenda);
+    } catch (error: any) {
+        console.error("❌ Error en API agenda:", error);
+        res.status(500).json({ error: error.message || "Internal Server Error" });
+    }
 });
 
 app.get("/debug", async (req, res) => {
